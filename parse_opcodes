@@ -6,6 +6,9 @@ from builtins import range
 import math
 import sys
 import tokenize
+import random
+import re
+random.seed(42)
 from collections import OrderedDict
 
 namelist = []
@@ -387,6 +390,87 @@ opcode_base = 0
 opcode_size = 7
 funct_base = 12
 funct_size = 3
+
+gprs = [
+  'zero',
+  'ra',
+  'sp',
+  'gp',
+  'tp',
+  't0',
+  't1',
+  't2',
+  's0',
+  's1',
+  'a0',
+  'a1',
+  'a2',
+  'a3',
+  'a4',
+  'a5',
+  'a6',
+  'a7',
+  's2',
+  's3',
+  's4',
+  's5',
+  's6',
+  's7',
+  's8',
+  's9',
+  's10',
+  's11',
+  't3',
+  't4',
+  't5',
+  't6'
+]
+
+fprs = [
+  'ft0',
+  'ft1',
+  'ft2',
+  'ft3',
+  'ft4',
+  'ft5',
+  'ft6',
+  'ft7',
+  'fs0',
+  'fs1',
+  'fa0',
+  'fa1',
+  'fa2',
+  'fa3',
+  'fa4',
+  'fa5',
+  'fa6',
+  'fa7',
+  'fs2',
+  'fs3',
+  'fs4',
+  'fs5',
+  'fs6',
+  'fs7',
+  'fs8',
+  'fs9',
+  'fs10',
+  'fs11',
+  'ft8',
+  'ft9',
+  'ft10',
+  'ft11'
+]
+
+rounding_modes = {
+  'rne': 0,
+  'rtz': 1,
+  'rdn': 2,
+  'rup': 3,
+  'rmm': 4,
+  'invalid1': 5,
+  'invalid2': 6,
+  'dyn': 7
+}
 
 def binary(n, digits=0):
   rep = bin(n)[2:]
@@ -1084,6 +1168,85 @@ def get_vfmt(n):
     exit(-1)
   return fmt
 
+def get_reg_type(n, a):
+  """
+    Determines the register type of the register a in instruction n
+  """
+  # ftX for rs and rd
+  flt_types = ['d','s','h','ah','b']
+  reg_prefix = None
+  if n.startswith(('fmadd','fmsub','fnm','fadd','fsub','fmul','fdiv','fsqrt','fsgnj','feq','flt','fle','fmin','fmax',
+      'vfadd','vfsub','vfmul','vfdiv','vfmin','vfmax','vfsqrt','vfmac','vfmre','vfsgnj','vfeq','vfne','fmacex',
+      'vflt','vfge','vfle','vfgt','vfcpk','vfdotp','vfavg')):
+    reg_prefix = 'f'
+  # fcvt operation to float
+  elif n.startswith(('fcvt','fmv','vfmv','vfcvt')) and n.split('.')[1] in flt_types:
+    reg_prefix = 'f' if a.startswith('rd') else 'x'
+  # fcvt operation to int
+  elif n.startswith(('fcvt','fmv','vfmv','vfcvt')) and n.split('.')[2] in flt_types:
+    reg_prefix = 'x' if a.startswith('rd') else 'f'
+  # ft for rs and t rd
+  elif n.startswith(('fclass','vfclass')):
+    reg_prefix = 'x' if a.startswith('rd') else 'f'
+  # floating loads
+  elif n.startswith(('fld','flb')):
+    if a == 'rd':
+      reg_prefix = 'f'
+    elif a == 'rs1':
+      reg_prefix = 'x'
+  # floating stores: imm12hi rs1 rs2 imm12lo
+  elif n.startswith(('fsd','fsb')):
+    if a == 'rs1':
+      reg_prefix = 'f'
+    if a == 'rs2':
+      reg_prefix = 'x'
+  elif a.startswith('imm'):
+    reg_prefix = a
+  if not reg_prefix:
+    eprint(f'not implemented instruction/argument pair: {n} {a}')
+    exit(-1)
+  return reg_prefix
+
+def reg_prefix_to_td(n, a):
+  """Get TableGen type of argument a to instruction a"""
+  reg_prefix = get_reg_type(n, a)
+  if reg_prefix == 'f':
+    eprint('Unimplemented Warning: Defaulting to FPR64 for all floating point registers')
+    return 'FPR64'
+  elif reg_prefix == 'x':
+    return 'GPR'
+  else:
+    eprint(f'not implemented argument: {n} {a} reg_prefix: {reg_prefix}')
+    exit(-1)
+
+def td_assemble_ins(n, args):
+  """Generate TableGen ins string
+    if frm is true, the last argument is expected to be the rounding mode"""
+  ins = []
+  for a in args:
+    if a.startswith('rs'):
+      ins.append(f"{reg_prefix_to_td(n,a)}:${a}")
+    elif a.startswith('rm'):
+      ins.append(f"frmarg:${a}")
+    elif a.startswith('rd'):
+      pass
+    else:
+      eprint(f'not implemented input argument: {n} {a}')
+      exit(-1)
+  return ', '.join(ins)
+
+def td_assemble_outs(n, args):
+  ins = []
+  for a in args:
+    if a.startswith('rd'):
+      ins.append(f"{reg_prefix_to_td(n,a)}:${a}")
+    elif a.startswith(('rs','rm')):
+      pass
+    else:
+      eprint(f'not implemented output argument: {n} {a}')
+      exit(-1)
+  return ', '.join(ins)
+
 def td_ifload_type(n, match, args):
   s = """let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
   def {rec} : RVInstI<0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>, {outs},
@@ -1121,10 +1284,10 @@ def td_r_type(n, match, args):
     funct7=yank(match, 25, 7),
     funct3=yank(match, 12, 3),
     opcode=yank(match, 0, 7),
-    outs="(outs FPR64:$rd)",
-    ins="(ins FPR64:$rs1, FPR64:$rs2, frmarg:$funct3)",
+    outs=f"(outs {td_assemble_outs(n, args)})",
+    ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
-    argstr="$rd, $rs1, $rs2, $funct3")
+    argstr=', '.join(["$"+a for a in args]))
   print(s)
 
 def td_r4_type(n, match, args):
@@ -1135,26 +1298,30 @@ def td_r4_type(n, match, args):
     rec=n.replace('.','_').upper(),
     funct2=yank(match, 25, 2),
     opcode=yank(match, 0, 7),
-    outs="(outs FPR32:$rd)",
-    ins="(ins FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, frmarg:$funct3)",
+    outs=f"(outs {td_assemble_outs(n, args)})",
+    ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
-    argstr="$rd, $rs1, $rs2, $rs3, $funct3")
+    argstr=', '.join(["$"+a for a in args]))
   print(s)
 
-def td_r4_funct5_type(n, match, args):
+def td_r_funct5_type(n, match, args):
+  # check argument type
+
   s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-  def {rec} : RVInstR4Funct5<0b{funct7:07b}, 0b{funct5:05b}, 0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>,
+  def {rec} : RVInstRFunct5<0b{funct7:07b}, 0b{funct5:05b}, 0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>,
              {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  eprint(f'ins: {td_assemble_ins(n, args)}')
+  eprint(f'outs: {td_assemble_outs(n, args)}')
   s = s.format(
     rec=n.replace('.','_').upper(),
     funct7=yank(match, 25, 7),
     funct5=yank(match, 20, 5),
     funct3=yank(match, 12, 3),
     opcode=yank(match, 0, 7),
-    outs="(outs FPR32:$rd)",
-    ins="(ins FPR32:$rs1)",
+    outs=f"(outs {td_assemble_outs(n, args)})",
+    ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
-    argstr="$rd, $rs1")
+    argstr=', '.join(["$"+a for a in args]))
   print(s)
 
 def td_r4f3_type(n, match, args):
@@ -1166,10 +1333,10 @@ def td_r4f3_type(n, match, args):
     funct2=yank(match, 25, 2),
     funct3=altfloats[n.lower().split('.')[1]],
     opcode=yank(match, 0, 7),
-    outs="(outs FPR32:$rd)",
-    ins="(ins FPR32:$rs1, FPR32:$rs2, FPR32:$rs3)",
+    outs=f"(outs {td_assemble_outs(n, args)})",
+    ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
-    argstr="$rd, $rs1, $rs2, $rs3")
+    argstr=', '.join(["$"+a for a in args]))
   print(s)
 
 def td_rfrm_type(n, match, args):
@@ -1180,10 +1347,10 @@ def td_rfrm_type(n, match, args):
     rec=n.replace('.','_').upper(),
     funct7=yank(match, 25, 7),
     opcode=yank(match, 0, 7),
-    outs="(outs FPR64:$rd)",
-    ins="(ins FPR64:$rs1, FPR64:$rs2, frmarg:$funct3)",
+    outs=f"(outs {td_assemble_outs(n, args)})",
+    ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
-    argstr="$rd, $rs1, $rs2, $funct3")
+    argstr=', '.join(["$"+a for a in args]))
   print(s)
 
 def td_rfrm_funt5_type(n, match, args):
@@ -1196,10 +1363,10 @@ def td_rfrm_funt5_type(n, match, args):
     funct7=yank(match, 25, 7),
     funct5=yank(match, 20, 5),
     opcode=yank(match, 0, 7),
-    outs="(outs FPR64:$rd)",
-    ins="(ins FPR64:$rs1, frmarg:$funct3)",
+    outs=f"(outs {td_assemble_outs(n, args)})",
+    ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
-    argstr="$rd, $rs1, $funct3")
+    argstr=', '.join(["$"+a for a in args]))
   print(s)
 
 def td_rvf_type(n, match, args):
@@ -1214,10 +1381,10 @@ def td_rvf_type(n, match, args):
     r=yank(match, 14, 1),
     vfmt=fmt,
     opcode=yank(match, 0, 7),
-    outs="(outs FPR64:$rd)",
-    ins="(ins FPR64:$rs1, FPR64:$rs2)",
+    outs=f"(outs {td_assemble_outs(n, args)})",
+    ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
-    argstr="$rd, $rs1, $rs2")
+    argstr=', '.join(["$"+a for a in args]))
   print(s)
 
 def td_rvf_funct2_type(n, match, args):
@@ -1233,10 +1400,10 @@ def td_rvf_funct2_type(n, match, args):
     r=yank(match, 14, 1),
     vfmt=fmt,
     opcode=yank(match, 0, 7),
-    outs="(outs FPR64:$rd)",
-    ins="(ins FPR64:$rs1)",
+    outs=f"(outs {td_assemble_outs(n, args)})",
+    ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
-    argstr="$rd, $rs1")
+    argstr=', '.join(["$"+a for a in args]))
   print(s)
 
 def print_tablegen_insn(n):
@@ -1294,8 +1461,8 @@ def print_tablegen_insn(n):
         td_rfrm_type(n, match[n], arguments[n])
     elif n.startswith('vf'):
       td_rvf_type(n, match[n], arguments[n])
-    elif n.startswith('fcvt'):
-      td_r4_funct5_type(n, match[n], arguments[n])
+    elif n.startswith(('fcvt','fsqrt')):
+      td_r_funct5_type(n, match[n], arguments[n])
     else:
       td_r_type(n, match[n], arguments[n])
 
@@ -1309,17 +1476,137 @@ def print_tablegen_insn(n):
 
 
 def make_tablegen():
-  # debug
-  # for name in namelist:
-  #   print(f'name: {name}')
-  #   print(f'mask: {mask[name]}')
-  #   print(f'arguments: {arguments[name]}')
-  #   break
-  # print('/* Automatically generated by parse_opcodes */')
-  # print('package riscv_instr;')
   for name in namelist:
     if name not in pseudos:
       print_tablegen_insn(name)
+
+def rnd_reg():
+  return 0
+  # return random.randrange(32)
+
+def rnd_argstring(n, args):
+  """
+    given an instruction and arguments, return a random argument string
+  """
+  flt_types = ['d','s','h','ah','b']
+  ret = []
+  for a in args:
+    # rounding mode?
+    if a == 'rm':
+      ret.append(random.choice(('rne', 'rtz', 'rdn', 'rup', 'rmm', 'dyn')))
+    # ftX for rs and rd
+    elif n.startswith(('fmadd','fmsub','fnm','fadd','fsub','fmul','fdiv','fsqrt','fsgnj','feq','flt','fle','fmin','fmax',
+        'vfadd','vfsub','vfmul','vfdiv','vfmin','vfmax','vfsqrt','vfmac','vfmre','vfsgnj','vfeq','vfne','fmacex',
+        'vflt','vfge','vfle','vfgt','vfcpk','vfdotp','vfavg')):
+      ret.append( f"f{rnd_reg()}" )
+    # fcvt operation to float
+    elif n.startswith(('fcvt','fmv','vfmv','vfcvt')) and n.split('.')[1] in flt_types:
+      ret.append( f"{'f' if a.startswith('rd') else 'x'}{rnd_reg()}" )
+    # fcvt operation to int
+    elif n.startswith(('fcvt','fmv','vfmv','vfcvt')) and n.split('.')[2] in flt_types:
+      ret.append( f"{'x' if a.startswith('rd') else 'f'}{rnd_reg()}" )
+    # ft for rs and t rd
+    elif n.startswith(('fclass','vfclass')):
+      ret.append( f"{'x' if a.startswith('rd') else 'f'}{rnd_reg()}" )
+    # floating loads
+    elif n.startswith(('fld','flb')):
+      if a == 'rd':
+        ret.append( f"f{rnd_reg()}" )
+      if a == 'rs1':
+        ret.append( f"x{rnd_reg()}" )
+      if a == 'imm12':
+        # fixup
+        ret = f'{ret[0]}, {random.randrange(2**11)}({ret[1]})'
+        return ret
+    # floating stores: imm12hi rs1 rs2 imm12lo
+    elif n.startswith(('fsd','fsb')):
+      if a == 'imm12hi':
+        pass
+      if a == 'rs1':
+        ret.append( f"f{rnd_reg()}" )
+      if a == 'rs2':
+        ret.append( f"x{rnd_reg()}" )
+      if a == 'imm12lo':
+        # fixup
+        ret = f'{ret[0]}, {random.randrange(2**11)}({ret[1]})'
+        return ret
+    else:
+      eprint(f"Not implemented: {n} {a}")
+      exit(-1)
+  return ', '.join(ret)
+
+
+def print_lit_insn_check_asmobj(n, m, args):
+  argss = rnd_argstring(n, args).replace(' ','').split(',')
+  argss_abi = []
+  # replace register names with ABI names
+  for i,a in enumerate(argss):
+    if a[0] in ('x','f'):
+      argss_abi.append(gprs[int(a[1:])] if a[0] == 'x' else fprs[int(a[1:])] if a[0] == 'f' else a)
+    elif a[-1] == ')':
+      # addressing syntax
+      argss_abi.append(re.sub(r'x\d+', gprs[int(a[a.index('(')+2:-1])], a))
+    else:
+      argss_abi.append(a)
+  s=f"# CHECK-ASM-AND-OBJ: {n} {', '.join(argss_abi)}"
+  print(s)
+  return ', '.join(argss)
+def print_lit_insn_check_asm(n, m, args, argss):
+  # for each argument OR m with its value at the location specified by arglut
+
+  # special case: load/store
+  z = re.match(r'(.+), (\d+)\((.+)\)',argss)
+  if z and 'imm12' in args:
+    vals = {'rd': int(z.groups()[0][1:]), 'rs1': int(z.groups()[2][1:]), 'imm12': int(z.groups()[1])}
+    # eprint(f'op {n} is a load to {z.groups()[0]} from off {z.groups()[1]} reg {z.groups()[2]} "{argss}" {args}')
+    # eprint(vals)
+  elif z and all(x in args for x in ['imm12lo','imm12hi']):
+    vals = {'imm12hi': int(z.groups()[1])>>5, 'rs1': int(z.groups()[2][1:]), 'rs2': int(z.groups()[0][1:]), 'imm12lo': int(z.groups()[1])&0x1f}
+    # eprint(f'op {n} is a store to {z.groups()[0]} from off {z.groups()[1]} reg {z.groups()[2]} "{argss}" {args}')
+    # eprint(vals)
+  else:
+    eprint('---------')
+    vals = {}
+    for field, strng in zip(args, argss.replace(' ','').split(',')):
+      # parse register
+      if field in ('rd','rs1','rs2','rs3'):
+        value = int(strng[1:])
+      # parse rounding mode
+      elif field == 'rm':
+        value = rounding_modes[strng]
+      else:
+        eprint(f'not implemented field {field}')
+        exit(-1)
+      vals[field] = value
+  eprint(f'args: {args} vals: {vals}')
+
+  # Do actual substitution
+  mout = m
+  eprint(f'pre  {mout:032b}')
+  for a in args:
+    mout = mout | vals[a]<<arglut[a][1]
+  eprint(f'post {mout:032b}')
+  print(f'# CHECK-ASM: encoding: [0x{yank(mout,0,8):02x},0x{yank(mout,8,8):02x},0x{yank(mout,16,8):02x},0x{yank(mout,24,8):02x}]')
+
+
+def print_lit_insn_asm(n, m, args, argss):
+  print(f"{n} {argss}")
+
+def print_lit_insn(n):
+  argss = print_lit_insn_check_asmobj(n, match[n], arguments[n])
+  print_lit_insn_check_asm(n, match[n], arguments[n], argss)
+  print_lit_insn_asm(n, match[n], arguments[n], argss)
+
+def make_lit():
+  print("# RUN: llvm-mc %s -triple=riscv32 -mattr=+xsmallfloat -riscv-no-aliases -show-encoding \\")
+  print("# RUN:     | FileCheck -check-prefixes=CHECK-ASM,CHECK-ASM-AND-OBJ %s")
+  print("# RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+xsmallfloat < %s \\")
+  print("# RUN:     | llvm-objdump --mattr=+xsmallfloat -M no-aliases -d -r - \\")
+  print("# RUN:     | FileCheck --check-prefix=CHECK-ASM-AND-OBJ %s")
+  print("")
+  for name in namelist:
+    if name not in pseudos:
+      print_lit_insn(name)
 
 
 def parse_inputs(args):
@@ -1421,5 +1708,7 @@ if __name__ == "__main__":
     make_rust()
   elif sys.argv[1] == '-tablegen':
     make_tablegen()
+  elif sys.argv[1] == '-lit':
+    make_lit()
   else:
     assert 0
