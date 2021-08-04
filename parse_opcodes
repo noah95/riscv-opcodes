@@ -1049,6 +1049,279 @@ def make_rust():
   for num, name in causes:
       print('const CAUSE_%s: u8 = %s;' % (name.upper().replace(' ', '_'), hex(num)))
 
+
+# Alt formats use a reserved value in the rm field
+altfloats = {'ah': 0b101}
+# ops that use the rs2 field as a funct5
+rs2funct5 = ['vfsqrt', 'vfclass', 'vfmv', 'vfcvt', 'vfcvtu']
+# mapping of float format to VFMT field
+vfmt = {'s': 'VFMT_FP32', 'h': 'VFMT_FP16', 'ah': 'VFMT_FP16ALT', 'b': 'VFMT_FP8', }
+
+import sys
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+def get_vfmt(n):
+  split_n = n.lower().split('.')
+  op, argc = split_n[0], len(split_n)-1
+
+  # parse special cases first
+  if op == 'vfdotpex':
+    return vfmt[split_n[-1]]
+
+  if argc == 2 and all(e in vfmt for e in split_n[1:]):
+    # if of form ???.[].[] where both [] are in vfmt we have a coversion operation and use the first
+    # as vfmt field
+    fmt = vfmt[split_n[1]]
+  elif argc == 2:
+    # Conversion and source/dst is not a vfmt type, take the one that is a vfmt type
+    fmt = vfmt[split_n[1] if split_n[1] in vfmt else split_n[2]]
+  elif argc == 1:
+    # only single format field
+    fmt = vfmt[split_n[1]]
+  else:
+    eprint(f'Not implemented: {n}')
+    exit(-1)
+  return fmt
+
+def td_ifload_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+  def {rec} : RVInstI<0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>, {outs},
+             {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct3=yank(match, 12, 3),
+    opcode=yank(match, 0, 7),
+    opcodestr=n,
+    argstr="$rd, ${imm12}(${rs1})",
+    outs="(outs FPR32:$rd)",
+    ins="(ins GPR:$rs1, simm12:$imm12)")
+  print(s)
+
+def td_sfstore_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
+  def {rec} : RVInstS<0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>, {outs},
+             {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct3=yank(match, 12, 3),
+    opcode=yank(match, 0, 7),
+    opcodestr=n,
+    argstr="$rs2, ${imm12}(${rs1})",
+    outs="(outs)",
+    ins="(ins FPR32:$rs2, GPR:$rs1, simm12:$imm12)")
+  print(s)
+
+def td_r_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+  def {rec} : RVInstR<0b{funct7:07b}, 0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct7=yank(match, 25, 7),
+    funct3=yank(match, 12, 3),
+    opcode=yank(match, 0, 7),
+    outs="(outs FPR64:$rd)",
+    ins="(ins FPR64:$rs1, FPR64:$rs2, frmarg:$funct3)",
+    opcodestr=n,
+    argstr="$rd, $rs1, $rs2, $funct3")
+  print(s)
+
+def td_r4_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+  def {rec} : RVInstR4<0b{funct2:02b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct2=yank(match, 25, 2),
+    opcode=yank(match, 0, 7),
+    outs="(outs FPR32:$rd)",
+    ins="(ins FPR32:$rs1, FPR32:$rs2, FPR32:$rs3, frmarg:$funct3)",
+    opcodestr=n,
+    argstr="$rd, $rs1, $rs2, $rs3, $funct3")
+  print(s)
+
+def td_r4_funct5_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+  def {rec} : RVInstR4Funct5<0b{funct7:07b}, 0b{funct5:05b}, 0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct7=yank(match, 25, 7),
+    funct5=yank(match, 20, 5),
+    funct3=yank(match, 12, 3),
+    opcode=yank(match, 0, 7),
+    outs="(outs FPR32:$rd)",
+    ins="(ins FPR32:$rs1)",
+    opcodestr=n,
+    argstr="$rd, $rs1")
+  print(s)
+
+def td_r4f3_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+  def {rec} : RVInstR4Funct3<0b{funct2:02b}, 0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct2=yank(match, 25, 2),
+    funct3=altfloats[n.lower().split('.')[1]],
+    opcode=yank(match, 0, 7),
+    outs="(outs FPR32:$rd)",
+    ins="(ins FPR32:$rs1, FPR32:$rs2, FPR32:$rs3)",
+    opcodestr=n,
+    argstr="$rd, $rs1, $rs2, $rs3")
+  print(s)
+
+def td_rfrm_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+  def {rec} : RVInstRFrm<0b{funct7:07b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct7=yank(match, 25, 7),
+    opcode=yank(match, 0, 7),
+    outs="(outs FPR64:$rd)",
+    ins="(ins FPR64:$rs1, FPR64:$rs2, frmarg:$funct3)",
+    opcodestr=n,
+    argstr="$rd, $rs1, $rs2, $funct3")
+  print(s)
+
+def td_rfrm_funt5_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+  def {rec} : RVInstRFrmFunct5<0b{funct7:07b}, 0b{funct5:05b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  eprint(f'{n} -> td_rfrm_funt5_type')
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct7=yank(match, 25, 7),
+    funct5=yank(match, 20, 5),
+    opcode=yank(match, 0, 7),
+    outs="(outs FPR64:$rd)",
+    ins="(ins FPR64:$rs1, frmarg:$funct3)",
+    opcodestr=n,
+    argstr="$rd, $rs1, $funct3")
+  print(s)
+
+def td_rvf_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+  def {rec} : RVInstRVf<0b{funct2:02b}, 0b{vecfltop:05b}, 0b{r:01b}, {vfmt}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  fmt = get_vfmt(n)
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct2=yank(match, 30, 2),
+    vecfltop=yank(match, 25, 5),
+    r=yank(match, 14, 1),
+    vfmt=fmt,
+    opcode=yank(match, 0, 7),
+    outs="(outs FPR64:$rd)",
+    ins="(ins FPR64:$rs1, FPR64:$rs2)",
+    opcodestr=n,
+    argstr="$rd, $rs1, $rs2")
+  print(s)
+
+def td_rvf_funct2_type(n, match, args):
+  s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+  def {rec} : RVInstRVfFunct5<0b{funct2:02b}, 0b{vecfltop:05b}, 0b{funct5:05b}, 0b{r:01b}, {vfmt}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  fmt = get_vfmt(n)
+  s = s.format(
+    rec=n.replace('.','_').upper(),
+    funct2=yank(match, 30, 2),
+    vecfltop=yank(match, 25, 5),
+    funct5=yank(match, 20, 5),
+    r=yank(match, 14, 1),
+    vfmt=fmt,
+    opcode=yank(match, 0, 7),
+    outs="(outs FPR64:$rd)",
+    ins="(ins FPR64:$rs1)",
+    opcodestr=n,
+    argstr="$rd, $rs1")
+  print(s)
+
+def print_tablegen_insn(n):
+  if n == 'fence' or n == 'fence.tso' or n == 'pause':
+    eprint(f'not implemented: {n} (fence_type)')
+    # td_fence_type(n, match[n], arguments[n])
+  elif 'aqrl' in arguments[n]:
+    eprint(f'not implemented: {n} (amo_type)')
+    # td_amo_type(n, match[n], arguments[n])
+  elif 'shamt' in arguments[n]:
+    eprint(f'not implemented: {n} (ish_type)')
+    # td_ish_type(n, match[n], arguments[n])
+  elif 'shamtw' in arguments[n]:
+    eprint(f'not implemented: {n} (ishw_type)')
+    # td_ishw_type(n, match[n], arguments[n])
+  elif 'imm20' in arguments[n]:
+    eprint(f'not implemented: {n} (u_type)')
+    # td_u_type(n, match[n], arguments[n])
+  elif 'jimm20' in arguments[n]:
+    eprint(f'not implemented: {n} (uj_type)')
+    # td_uj_type(n, match[n], arguments[n])
+  elif n[:3] == 'csr':
+    eprint(f'not implemented: {n} (csr_type)')
+    # td_csr_type(n, match[n], arguments[n])
+  elif 'imm12' in arguments[n] or n == 'ecall' or n == 'ebreak':
+    if 'l' == n[0]:
+      eprint(f'not implemented: {n} (td_iload_type)')
+      # td_iload_type(n, match[n], arguments[n])
+    elif n.startswith('fl'):
+      td_ifload_type(n, match[n], arguments[n])
+    else:
+      eprint(f'not implemented: {n} (i_type)')
+      # td_i_type(n, match[n], arguments[n])
+  elif 'imm12hi' in arguments[n]:
+    if n.startswith('fs'):
+      td_sfstore_type(n, match[n], arguments[n])
+    else:
+      eprint(f'not implemented: {n} (s_type)')
+      # td_s_type(n, match[n], arguments[n])
+  elif 'bimm12hi' in arguments[n]:
+    eprint(f'not implemented: {n} (sb_type)')
+    # td_sb_type(n, match[n], arguments[n])
+  elif 'rs3' in arguments[n]:
+    if n.lower().split('.')[1] in altfloats:
+      td_r4f3_type(n, match[n], arguments[n])
+    else:
+      td_r4_type(n, match[n], arguments[n])
+  else:
+    if n.split('.')[0].lower() in rs2funct5:
+      td_rvf_funct2_type(n, match[n], arguments[n])
+    elif 'rm' in arguments[n]:
+      if n.startswith('fcvt'):
+        td_rfrm_funt5_type(n, match[n], arguments[n])
+      else:
+        td_rfrm_type(n, match[n], arguments[n])
+    elif n.startswith('vf'):
+      td_rvf_type(n, match[n], arguments[n])
+    elif n.startswith('fcvt'):
+      td_r4_funct5_type(n, match[n], arguments[n])
+    else:
+      td_r_type(n, match[n], arguments[n])
+
+  # s = "  localparam [31:0] %-18s = 32'b" % name.replace('.', '_').upper()
+  # for i in range(31, -1, -1):
+  #   if yank(mask[name], i, 1):
+  #     s = '%s%d' % (s, yank(match[name], i, 1))
+  #   else:
+  #     s = s + '?'
+  # print(s + ";")
+
+
+def make_tablegen():
+  # debug
+  # for name in namelist:
+  #   print(f'name: {name}')
+  #   print(f'mask: {mask[name]}')
+  #   print(f'arguments: {arguments[name]}')
+  #   break
+  # print('/* Automatically generated by parse_opcodes */')
+  # print('package riscv_instr;')
+  for name in namelist:
+    if name not in pseudos:
+      print_tablegen_insn(name)
+
+
 def parse_inputs(args):
   inputs = []
   for fn in args:
@@ -1146,5 +1419,7 @@ if __name__ == "__main__":
     make_go()
   elif sys.argv[1] == '-rust':
     make_rust()
+  elif sys.argv[1] == '-tablegen':
+    make_tablegen()
   else:
     assert 0
