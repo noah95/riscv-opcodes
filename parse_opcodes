@@ -8,7 +8,7 @@ import sys
 import tokenize
 import random
 import re
-random.seed(42)
+random.seed(12)
 from collections import OrderedDict
 
 namelist = []
@@ -1179,6 +1179,9 @@ def get_reg_type(n, a):
       'vfadd','vfsub','vfmul','vfdiv','vfmin','vfmax','vfsqrt','vfmac','vfmre','vfsgnj','vfeq','vfne','fmacex',
       'vflt','vfge','vfle','vfgt','vfcpk','vfdotp','vfavg')):
     reg_prefix = 'f'
+  # fcvt operation to/from float
+  elif n.split('.')[0] in ('fcvt','vfcvt') and all(x in flt_types for x in re.match(r'.*fcvt\.(.+)\.(.+)',n).groups()):
+    reg_prefix = 'f'
   # fcvt operation to float
   elif n.startswith(('fcvt','fmv','vfmv','vfcvt')) and n.split('.')[1] in flt_types:
     reg_prefix = 'f' if a.startswith('rd') else 'x'
@@ -1211,7 +1214,7 @@ def reg_prefix_to_td(n, a):
   """Get TableGen type of argument a to instruction a"""
   reg_prefix = get_reg_type(n, a)
   if reg_prefix == 'f':
-    eprint('Unimplemented Warning: Defaulting to FPR64 for all floating point registers')
+    # eprint('Unimplemented Warning: Defaulting to FPR64 for all floating point registers')
     return 'FPR64'
   elif reg_prefix == 'x':
     return 'GPR'
@@ -1226,12 +1229,12 @@ def td_assemble_ins(n, args):
   for a in args:
     if a.startswith('rs'):
       ins.append(f"{reg_prefix_to_td(n,a)}:${a}")
-    elif a.startswith('rm'):
+    elif a.startswith('funct3'):
       ins.append(f"frmarg:${a}")
     elif a.startswith('rd'):
       pass
     else:
-      eprint(f'not implemented input argument: {n} {a}')
+      eprint(f'not implemented argument for ins: {n} {a}')
       exit(-1)
   return ', '.join(ins)
 
@@ -1240,10 +1243,10 @@ def td_assemble_outs(n, args):
   for a in args:
     if a.startswith('rd'):
       ins.append(f"{reg_prefix_to_td(n,a)}:${a}")
-    elif a.startswith(('rs','rm')):
+    elif a.startswith(('rs','rm','funct3')):
       pass
     else:
-      eprint(f'not implemented output argument: {n} {a}')
+      eprint(f'not implemented argument for outs: {n} {a}')
       exit(-1)
   return ', '.join(ins)
 
@@ -1306,12 +1309,11 @@ def td_r4_type(n, match, args):
 
 def td_r_funct5_type(n, match, args):
   # check argument type
-
   s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-  def {rec} : RVInstRFunct5<0b{funct7:07b}, 0b{funct5:05b}, 0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>,
-             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
-  eprint(f'ins: {td_assemble_ins(n, args)}')
-  eprint(f'outs: {td_assemble_outs(n, args)}')
+  def {rec} : RVInstR<0b{funct7:07b}, 0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]> {{
+    let rs2 = 0b{funct5:05b};
+  }}"""
   s = s.format(
     rec=n.replace('.','_').upper(),
     funct7=yank(match, 25, 7),
@@ -1340,9 +1342,11 @@ def td_r4f3_type(n, match, args):
   print(s)
 
 def td_rfrm_type(n, match, args):
+  # rename the "rm" argument to "funct3"
+  args[args.index('rm')] = 'funct3'
   s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
   def {rec} : RVInstRFrm<0b{funct7:07b}, RISCVOpcode<0b{opcode:07b}>,
-             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]> ;"""
   s = s.format(
     rec=n.replace('.','_').upper(),
     funct7=yank(match, 25, 7),
@@ -1354,10 +1358,13 @@ def td_rfrm_type(n, match, args):
   print(s)
 
 def td_rfrm_funt5_type(n, match, args):
+  # rename the "rm" argument to "funct3"
+  args[args.index('rm')] = 'funct3'
   s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-  def {rec} : RVInstRFrmFunct5<0b{funct7:07b}, 0b{funct5:05b}, RISCVOpcode<0b{opcode:07b}>,
-             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
-  eprint(f'{n} -> td_rfrm_funt5_type')
+  def {rec} : RVInstRFrm<0b{funct7:07b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]> {{
+    let rs2 = 0b{funct5:05b};
+  }}"""
   s = s.format(
     rec=n.replace('.','_').upper(),
     funct7=yank(match, 25, 7),
@@ -1389,8 +1396,10 @@ def td_rvf_type(n, match, args):
 
 def td_rvf_funct2_type(n, match, args):
   s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-  def {rec} : RVInstRVfFunct5<0b{funct2:02b}, 0b{vecfltop:05b}, 0b{funct5:05b}, 0b{r:01b}, {vfmt}, RISCVOpcode<0b{opcode:07b}>,
-             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  def {rec} : RVInstRVf<0b{funct2:02b}, 0b{vecfltop:05b}, 0b{r:01b}, {vfmt}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]> {{
+    let rs2 = 0b{funct5:05b};
+  }}"""
   fmt = get_vfmt(n)
   s = s.format(
     rec=n.replace('.','_').upper(),
@@ -1461,7 +1470,7 @@ def print_tablegen_insn(n):
         td_rfrm_type(n, match[n], arguments[n])
     elif n.startswith('vf'):
       td_rvf_type(n, match[n], arguments[n])
-    elif n.startswith(('fcvt','fsqrt')):
+    elif n.startswith(('fcvt','fsqrt','fmv','fclass')):
       td_r_funct5_type(n, match[n], arguments[n])
     else:
       td_r_type(n, match[n], arguments[n])
@@ -1476,13 +1485,13 @@ def print_tablegen_insn(n):
 
 
 def make_tablegen():
+  print("// Automatically generated by parse_opcodes (noah95/riscv-opcodes)")
   for name in namelist:
     if name not in pseudos:
       print_tablegen_insn(name)
 
 def rnd_reg():
-  return 0
-  # return random.randrange(32)
+  return random.randrange(32)
 
 def rnd_argstring(n, args):
   """
@@ -1498,6 +1507,9 @@ def rnd_argstring(n, args):
     elif n.startswith(('fmadd','fmsub','fnm','fadd','fsub','fmul','fdiv','fsqrt','fsgnj','feq','flt','fle','fmin','fmax',
         'vfadd','vfsub','vfmul','vfdiv','vfmin','vfmax','vfsqrt','vfmac','vfmre','vfsgnj','vfeq','vfne','fmacex',
         'vflt','vfge','vfle','vfgt','vfcpk','vfdotp','vfavg')):
+      ret.append( f"f{rnd_reg()}" )
+    # fcvt operation to/from float
+    elif n.split('.')[0] in ('fcvt','vfcvt') and all(x in flt_types for x in re.match(r'.*fcvt\.(.+)\.(.+)',n).groups()):
       ret.append( f"f{rnd_reg()}" )
     # fcvt operation to float
     elif n.startswith(('fcvt','fmv','vfmv','vfcvt')) and n.split('.')[1] in flt_types:
@@ -1565,7 +1577,6 @@ def print_lit_insn_check_asm(n, m, args, argss):
     # eprint(f'op {n} is a store to {z.groups()[0]} from off {z.groups()[1]} reg {z.groups()[2]} "{argss}" {args}')
     # eprint(vals)
   else:
-    eprint('---------')
     vals = {}
     for field, strng in zip(args, argss.replace(' ','').split(',')):
       # parse register
@@ -1578,14 +1589,11 @@ def print_lit_insn_check_asm(n, m, args, argss):
         eprint(f'not implemented field {field}')
         exit(-1)
       vals[field] = value
-  eprint(f'args: {args} vals: {vals}')
 
   # Do actual substitution
   mout = m
-  eprint(f'pre  {mout:032b}')
   for a in args:
     mout = mout | vals[a]<<arglut[a][1]
-  eprint(f'post {mout:032b}')
   print(f'# CHECK-ASM: encoding: [0x{yank(mout,0,8):02x},0x{yank(mout,8,8):02x},0x{yank(mout,16,8):02x},0x{yank(mout,24,8):02x}]')
 
 
@@ -1598,6 +1606,7 @@ def print_lit_insn(n):
   print_lit_insn_asm(n, match[n], arguments[n], argss)
 
 def make_lit():
+  print("# Automatically generated by parse_opcodes (noah95/riscv-opcodes)")
   print("# RUN: llvm-mc %s -triple=riscv32 -mattr=+xsmallfloat -riscv-no-aliases -show-encoding \\")
   print("# RUN:     | FileCheck -check-prefixes=CHECK-ASM,CHECK-ASM-AND-OBJ %s")
   print("# RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+xsmallfloat < %s \\")
