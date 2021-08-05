@@ -1164,7 +1164,7 @@ def get_vfmt(n):
     # only single format field
     fmt = vfmt[split_n[1]]
   else:
-    eprint(f'Not implemented: {n}')
+    eprint(f'[001] not implemented: {n}')
     exit(-1)
   return fmt
 
@@ -1206,7 +1206,7 @@ def get_reg_type(n, a):
   elif a.startswith('imm'):
     reg_prefix = a
   if not reg_prefix:
-    eprint(f'not implemented instruction/argument pair: {n} {a}')
+    eprint(f'[002] not implemented instruction/argument pair: {n} {a}')
     exit(-1)
   return reg_prefix
 
@@ -1219,7 +1219,7 @@ def reg_prefix_to_td(n, a):
   elif reg_prefix == 'x':
     return 'GPR'
   else:
-    eprint(f'not implemented argument: {n} {a} reg_prefix: {reg_prefix}')
+    eprint(f'[003] not implemented argument: {n} {a} reg_prefix: {reg_prefix}')
     exit(-1)
 
 def td_assemble_ins(n, args):
@@ -1234,7 +1234,7 @@ def td_assemble_ins(n, args):
     elif a.startswith('rd'):
       pass
     else:
-      eprint(f'not implemented argument for ins: {n} {a}')
+      eprint(f'[004] not implemented argument for ins: {n} {a}')
       exit(-1)
   return ', '.join(ins)
 
@@ -1246,7 +1246,7 @@ def td_assemble_outs(n, args):
     elif a.startswith(('rs','rm','funct3')):
       pass
     else:
-      eprint(f'not implemented argument for outs: {n} {a}')
+      eprint(f'[005] not implemented argument for outs: {n} {a}')
       exit(-1)
   return ', '.join(ins)
 
@@ -1420,43 +1420,43 @@ def td_rvf_funct2_type(n, match, args):
 
 def print_tablegen_insn(n):
   if n == 'fence' or n == 'fence.tso' or n == 'pause':
-    eprint(f'not implemented: {n} (fence_type)')
+    eprint(f'[006] not implemented: {n} (fence_type)')
     # td_fence_type(n, match[n], arguments[n])
   elif 'aqrl' in arguments[n]:
-    eprint(f'not implemented: {n} (amo_type)')
+    eprint(f'[007] not implemented: {n} (amo_type)')
     # td_amo_type(n, match[n], arguments[n])
   elif 'shamt' in arguments[n]:
-    eprint(f'not implemented: {n} (ish_type)')
+    eprint(f'[008] not implemented: {n} (ish_type)')
     # td_ish_type(n, match[n], arguments[n])
   elif 'shamtw' in arguments[n]:
-    eprint(f'not implemented: {n} (ishw_type)')
+    eprint(f'[009] not implemented: {n} (ishw_type)')
     # td_ishw_type(n, match[n], arguments[n])
   elif 'imm20' in arguments[n]:
-    eprint(f'not implemented: {n} (u_type)')
+    eprint(f'[010] not implemented: {n} (u_type)')
     # td_u_type(n, match[n], arguments[n])
   elif 'jimm20' in arguments[n]:
-    eprint(f'not implemented: {n} (uj_type)')
+    eprint(f'[011] not implemented: {n} (uj_type)')
     # td_uj_type(n, match[n], arguments[n])
   elif n[:3] == 'csr':
-    eprint(f'not implemented: {n} (csr_type)')
+    eprint(f'[012] not implemented: {n} (csr_type)')
     # td_csr_type(n, match[n], arguments[n])
   elif 'imm12' in arguments[n] or n == 'ecall' or n == 'ebreak':
     if 'l' == n[0]:
-      eprint(f'not implemented: {n} (td_iload_type)')
+      eprint(f'[013] not implemented: {n} (td_iload_type)')
       # td_iload_type(n, match[n], arguments[n])
     elif n.startswith('fl'):
       td_ifload_type(n, match[n], arguments[n])
     else:
-      eprint(f'not implemented: {n} (i_type)')
+      eprint(f'[014] not implemented: {n} (i_type)')
       # td_i_type(n, match[n], arguments[n])
   elif 'imm12hi' in arguments[n]:
     if n.startswith('fs'):
       td_sfstore_type(n, match[n], arguments[n])
     else:
-      eprint(f'not implemented: {n} (s_type)')
+      eprint(f'[015] not implemented: {n} (s_type)')
       # td_s_type(n, match[n], arguments[n])
   elif 'bimm12hi' in arguments[n]:
-    eprint(f'not implemented: {n} (sb_type)')
+    eprint(f'[016] not implemented: {n} (sb_type)')
     # td_sb_type(n, match[n], arguments[n])
   elif 'rs3' in arguments[n]:
     if n.lower().split('.')[1] in altfloats:
@@ -1554,7 +1554,7 @@ def rnd_argstring(n, args):
         ret = f'{ret[0]}, {random.randrange(2**11)}({ret[1]})'
         return ret
     else:
-      eprint(f"Not implemented: {n} {a}")
+      eprint(f"[017] not implemented: {n} {a}")
       exit(-1)
   return ', '.join(ret)
 
@@ -1597,7 +1597,7 @@ def print_lit_insn_check_asm(n, m, args, argss):
       elif field == 'rm':
         value = rounding_modes[strng]
       else:
-        eprint(f'not implemented field {field}')
+        eprint(f'[018] not implemented field {field}')
         exit(-1)
       vals[field] = value
 
