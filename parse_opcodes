@@ -1260,7 +1260,7 @@ def td_ifload_type(n, match, args):
     opcode=yank(match, 0, 7),
     opcodestr=n,
     argstr="$rd, ${imm12}(${rs1})",
-    outs="(outs FPR32:$rd)",
+    outs="(outs FPR64:$rd)",
     ins="(ins GPR:$rs1, simm12:$imm12)")
   print(s)
 
@@ -1275,7 +1275,7 @@ def td_sfstore_type(n, match, args):
     opcodestr=n,
     argstr="$rs2, ${imm12}(${rs1})",
     outs="(outs)",
-    ins="(ins FPR32:$rs2, GPR:$rs1, simm12:$imm12)")
+    ins="(ins FPR64:$rs2, GPR:$rs1, simm12:$imm12)")
   print(s)
 
 def td_r_type(n, match, args):
@@ -1294,6 +1294,8 @@ def td_r_type(n, match, args):
   print(s)
 
 def td_r4_type(n, match, args):
+  # rename the "rm" argument to "funct3"
+  args[args.index('rm')] = 'funct3'
   s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
   def {rec} : RVInstR4<0b{funct2:02b}, RISCVOpcode<0b{opcode:07b}>,
              {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
@@ -1328,8 +1330,9 @@ def td_r_funct5_type(n, match, args):
 
 def td_r4f3_type(n, match, args):
   s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-  def {rec} : RVInstR4Funct3<0b{funct2:02b}, 0b{funct3:03b}, RISCVOpcode<0b{opcode:07b}>,
-             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
+  def {rec} : RVInstR4<0b{funct2:02b}, RISCVOpcode<0b{opcode:07b}>,
+             {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]> {{
+    let funct3 = 0b{funct3:03b}; }}"""
   s = s.format(
     rec=n.replace('.','_').upper(),
     funct2=yank(match, 25, 2),
@@ -1464,7 +1467,7 @@ def print_tablegen_insn(n):
     if n.split('.')[0].lower() in rs2funct5:
       td_rvf_funct2_type(n, match[n], arguments[n])
     elif 'rm' in arguments[n]:
-      if n.startswith('fcvt'):
+      if n.startswith(('fcvt','fsqrt')):
         td_rfrm_funt5_type(n, match[n], arguments[n])
       else:
         td_rfrm_type(n, match[n], arguments[n])
@@ -1489,6 +1492,14 @@ def make_tablegen():
   for name in namelist:
     if name not in pseudos:
       print_tablegen_insn(name)
+  print("//===----------------------------------------------------------------------===//")
+  print("// Pseudo instructions")
+  print("//===----------------------------------------------------------------------===//")
+  print("let isPseudo = 0, isCodeGenOnly = 1 in {")
+  for name in namelist:
+    if name in pseudos:
+      print_tablegen_insn(name)
+  print("} // isPseudo = 0, isCodeGenOnly = 1 in")
 
 def rnd_reg():
   return random.randrange(32)
@@ -1521,7 +1532,7 @@ def rnd_argstring(n, args):
     elif n.startswith(('fclass','vfclass')):
       ret.append( f"{'x' if a.startswith('rd') else 'f'}{rnd_reg()}" )
     # floating loads
-    elif n.startswith(('fld','flb')):
+    elif n.startswith(('fld','flb','flah')):
       if a == 'rd':
         ret.append( f"f{rnd_reg()}" )
       if a == 'rs1':
@@ -1531,7 +1542,7 @@ def rnd_argstring(n, args):
         ret = f'{ret[0]}, {random.randrange(2**11)}({ret[1]})'
         return ret
     # floating stores: imm12hi rs1 rs2 imm12lo
-    elif n.startswith(('fsd','fsb')):
+    elif n.startswith(('fsd','fsb','fsah')):
       if a == 'imm12hi':
         pass
       if a == 'rs1':
