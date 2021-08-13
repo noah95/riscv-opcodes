@@ -16,6 +16,7 @@ match = OrderedDict()
 mask = OrderedDict()
 pseudos = {}
 arguments = {}
+groups = {}
 
 arglut = {}
 arglut['rd'] = (11,7)
@@ -1649,11 +1650,18 @@ def parse_inputs(args):
       inputs.append(sys.stdin)
 
   for f in inputs:
+    grp = None
     for line in f:
       line = line.partition('#')
       tokens = line[0].split()
 
       if len(tokens) == 0:
+        if line[2].startswith('pragma start_group'):
+          grp = line[2].split(' ')[-1][:-1]
+          if grp not in groups:
+            groups[grp] = []
+        if line[2].startswith('pragma end_group'):
+          grp = None
         continue
       assert len(tokens) >= 2
 
@@ -1664,6 +1672,9 @@ def parse_inputs(args):
       mymatch = 0
       mymask = 0
       cover = 0
+
+      if grp:
+        groups[grp].append(name)
 
       if not name in list(arguments.keys()):
         arguments[name] = []
