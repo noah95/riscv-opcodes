@@ -1350,7 +1350,7 @@ def td_rfrm_type(n, match, args):
   s = """let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
   def {rec} : RVInstRFrm<0b{funct7:07b}, RISCVOpcode<0b{opcode:07b}>,
              {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]> ;"""
-  s = s.format(
+  s1 = s.format(
     rec=n.replace('.','_').upper(),
     funct7=yank(match, 25, 7),
     opcode=yank(match, 0, 7),
@@ -1358,7 +1358,16 @@ def td_rfrm_type(n, match, args):
     ins=f"(ins {td_assemble_ins(n, args)})",
     opcodestr=n,
     argstr=', '.join(["$"+a for a in args]))
-  print(s)
+  # create instruction alias without rounding mode argument
+  s = """\n  def      : InstAlias<\"{opcodestr} {argstr}\", ({rec} {outs}, {ins}, 0b111)>;"""
+  s2 = s.format(
+    rec=n.replace('.','_').upper(),
+    outs=f"{td_assemble_outs(n, args)}",
+    ins=f"{td_assemble_ins(n, args[:-1])}",
+    opcodestr=n,
+    argstr=', '.join(["$"+a for a in args[:-1]]))
+  print(s1+s2)
+  # eprint(s1+s2)
 
 def td_rfrm_funt5_type(n, match, args):
   # rename the "rm" argument to "funct3"
