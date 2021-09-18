@@ -14,6 +14,7 @@
 # collected under "Xsmallfloat" name - naming not final
 
 # RV32Xfhalf - half-precision floats
+# startgroup Xfhalf half-precision floats
 #flh       rd rs1 imm12 14..12=1 6..2=0x01 1..0=3
 #fsh       imm12hi rs1 rs2 imm12lo 14..12=1 6..2=0x09 1..0=3
 #fmadd.h   rd rs1 rs2 rs3 rm 26..25=2 6..2=0x10 1..0=3
@@ -51,8 +52,10 @@
 # XfhalfwithD - half-precision conversions with D extension (in addition to XfhalfwithF)
 #fcvt.d.h  rd rs1 24..20=2 31..27=0x08 14..12=0 26..25=1 6..2=0x14 1..0=3
 #fcvt.h.d  rd rs1 24..20=1 31..27=0x08 rm       26..25=2 6..2=0x14 1..0=3
+# end_group
 
 # RV32Xfalthalf - alternate half-precision floats
+# startgroup Xfalthalf alternate half-precision floats
 @flah      rd rs1 imm12 14..12=1 6..2=0x01 1..0=3
 @fsah      imm12hi rs1 rs2 imm12lo 14..12=1 6..2=0x09 1..0=3
 @fmadd.ah   rd rs1 rs2 rs3 rm 26..25=2 6..2=0x10 1..0=3
@@ -95,8 +98,10 @@ fcvt.h.h    rd rs1 24..20=2 31..27=0x08 rm       26..25=2 6..2=0x14 1..0=3
 @fcvt.ah.h  rd rs1 24..20=2 31..27=0x08 rm       26..25=2 6..2=0x14 1..0=3
 @fcvt.h.ah  rd rs1 24..20=2 31..27=0x08 rm       26..25=2 6..2=0x14 1..0=3
 @fcvt.ah.ah rd rs1 24..20=2 31..27=0x08 rm       26..25=2 6..2=0x14 1..0=3
+# end_group
 
 # RV32Xfquarter - quarter-precision floats
+# startgroup Xfquarter quarter-precision floats
 # b collides with quad precision (q) so they are pseudo here.
 flb       rd rs1 imm12 14..12=0 6..2=0x01 1..0=3
 fsb       imm12hi rs1 rs2 imm12lo 14..12=0 6..2=0x09 1..0=3
@@ -141,9 +146,10 @@ fcvt.b.h    rd rs1 24..20=2 31..27=0x08 rm       26..25=3 6..2=0x14 1..0=3
 # Xfquarterwithalthalf - quarter-precision conversions with Xfalthalf extension
 @fcvt.ah.b  rd rs1 24..20=3 31..27=0x08 14..12=0 26..25=2 6..2=0x14 1..0=3
 @fcvt.b.ah  rd rs1 24..20=2 31..27=0x08 rm       26..25=3 6..2=0x14 1..0=3
-
+# end_group
 
 # RV32Xfaltquarter - alternate quarter-precision floats
+# startgroup Xfaltquarter alternate quarter-precision floats
 # ab collides with quad precision (q) so they are pseudo here.
 @flab       rd rs1 imm12 14..12=0 6..2=0x01 1..0=3
 @fsab       imm12hi rs1 rs2 imm12lo 14..12=0 6..2=0x09 1..0=3
@@ -193,6 +199,7 @@ fcvt.b.b    rd rs1 24..20=3 31..27=0x08 14..12=0 26..25=3 6..2=0x14 1..0=3
 @fcvt.ab.b  rd rs1 24..20=3 31..27=0x08 14..12=0 26..25=3 6..2=0x14 1..0=3
 @fcvt.b.ab  rd rs1 24..20=3 31..27=0x08 14..12=0 26..25=3 6..2=0x14 1..0=3
 @fcvt.ab.ab rd rs1 24..20=3 31..27=0x08 14..12=0 26..25=3 6..2=0x14 1..0=3
+# end_group
 
 #SMALLFLOAT VECTORIAL (vfmt: 0=s (ILLEGAL in RV32), 1=ah, 2=h, 3=b)
 # 31..30=2 29..25=vecfltop rs2 rs1 14=R 13..12=vfmt rd 6..2=OP 1..0=3
@@ -200,6 +207,7 @@ fcvt.b.b    rd rs1 24..20=3 31..27=0x08 14..12=0 26..25=3 6..2=0x14 1..0=3
 # collected under Xfvec - naming not final
 
 # Xfvecsingle - vectorial single-precision floats - requires FLEN >= 64
+# startgroup Xfvecsingle vectorial single-precision floats - requires FLEN >= 64
 vfadd.s     rd rs1 rs2      31..30=2 29..25=0x01 14=0 13..12=0 6..2=0x0C 1..0=3
 vfadd.r.s   rd rs1 rs2      31..30=2 29..25=0x01 14=1 13..12=0 6..2=0x0C 1..0=3
 vfsub.s     rd rs1 rs2      31..30=2 29..25=0x02 14=0 13..12=0 6..2=0x0C 1..0=3
@@ -260,8 +268,10 @@ vfcvt.h.h     rd rs1 24..20=5 31..30=2 29..25=0x0C 14=0 13..12=2 6..2=0x0C 1..0=
 vfcvtu.h.h    rd rs1 24..20=5 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfcvtu.h.ah  rd rs1 24..20=5 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfcvtu.ah.h  rd rs1 24..20=5 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
+# end_group
 
 # Xfvechalf - vectorial half-precision floats - requires FLEN >= 32
+# startgroup Xfvechalf vectorial half-precision floats - requires FLEN >= 32
 vfadd.h     rd rs1 rs2      31..30=2 29..25=0x01 14=0 13..12=2 6..2=0x0C 1..0=3
 vfadd.r.h   rd rs1 rs2      31..30=2 29..25=0x01 14=1 13..12=2 6..2=0x0C 1..0=3
 vfsub.h     rd rs1 rs2      31..30=2 29..25=0x02 14=0 13..12=2 6..2=0x0C 1..0=3
@@ -320,8 +330,10 @@ vfcvt.s.h   rd rs1 24..20=6 31..30=2 29..25=0x0C 14=0 13..12=0 6..2=0x0C 1..0=3
 vfcvtu.s.h  rd rs1 24..20=6 31..30=2 29..25=0x0C 14=1 13..12=0 6..2=0x0C 1..0=3
 vfcvt.h.s   rd rs1 24..20=4 31..30=2 29..25=0x0C 14=0 13..12=2 6..2=0x0C 1..0=3
 vfcvtu.h.s  rd rs1 24..20=4 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
+# end_group
 
 # Xfvecalthalf - vectorial alternate half-precision floats - requires FLEN >= 32
+# startgroup Xfvecalthalf vectorial alternate half-precision floats - requires FLEN >= 32
 @vfadd.ah     rd rs1 rs2      31..30=2 29..25=0x01 14=0 13..12=2 6..2=0x0C 1..0=3
 @vfadd.r.ah   rd rs1 rs2      31..30=2 29..25=0x01 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfsub.ah     rd rs1 rs2      31..30=2 29..25=0x02 14=0 13..12=2 6..2=0x0C 1..0=3
@@ -358,8 +370,10 @@ vfcvtu.h.s  rd rs1 24..20=4 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfle.r.ah    rd rs1 rs2      31..30=2 29..25=0x14 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfgt.ah      rd rs1 rs2      31..30=2 29..25=0x15 14=0 13..12=2 6..2=0x0C 1..0=3
 @vfgt.r.ah    rd rs1 rs2      31..30=2 29..25=0x15 14=1 13..12=2 6..2=0x0C 1..0=3
+# end_group
 
 # XfvechalfnothirtytwoD: only unless RV32D
+# startgroup XfvechalfnothirtytwoD only unless RV32D
 @vfmv.x.ah    rd rs1 24..20=0 31..30=2 29..25=0x0C 14=0 13..12=2 6..2=0x0C 1..0=3
 @vfmv.ah.x    rd rs1 24..20=0 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfcvt.x.ah   rd rs1 24..20=2 31..30=2 29..25=0x0C 14=0 13..12=2 6..2=0x0C 1..0=3
@@ -381,8 +395,10 @@ vfcvtu.h.s  rd rs1 24..20=4 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfcvtu.s.ah  rd rs1 24..20=6 31..30=2 29..25=0x0C 14=1 13..12=0 6..2=0x0C 1..0=3
 @vfcvt.ah.s   rd rs1 24..20=4 31..30=2 29..25=0x0C 14=0 13..12=2 6..2=0x0C 1..0=3
 @vfcvtu.ah.s  rd rs1 24..20=4 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
+# end_group
 
 # Xfvecquarter - vectorial quarter-precision floats - requires FLEN >= 16
+# startgroup Xfvecquarter vectorial quarter-precision floats - requires FLEN >= 16
 vfadd.b     rd rs1 rs2      31..30=2 29..25=0x01 14=0 13..12=3 6..2=0x0C 1..0=3
 vfadd.r.b   rd rs1 rs2      31..30=2 29..25=0x01 14=1 13..12=3 6..2=0x0C 1..0=3
 vfsub.b     rd rs1 rs2      31..30=2 29..25=0x02 14=0 13..12=3 6..2=0x0C 1..0=3
@@ -458,8 +474,10 @@ vfcvt.b.b    rd rs1 24..20=7 31..30=2 29..25=0x0C 14=0 13..12=3 6..2=0x0C 1..0=3
 vfcvtu.b.b   rd rs1 24..20=7 31..30=2 29..25=0x0C 14=1 13..12=3 6..2=0x0C 1..0=3
 @vfcvtu.ab.b rd rs1 24..20=7 31..30=2 29..25=0x0C 14=1 13..12=3 6..2=0x0C 1..0=3
 @vfcvtu.b.ab rd rs1 24..20=7 31..30=2 29..25=0x0C 14=1 13..12=3 6..2=0x0C 1..0=3
+# end_group
 
 # Xfvecaltquarter - vectorial alternative quarter-precision floats - requires FLEN >= 16
+# startgroup Xfvecaltquarter vectorial alternative quarter-precision floats - requires FLEN >= 16
 @vfadd.ab     rd rs1 rs2      31..30=2 29..25=0x01 14=0 13..12=3 6..2=0x0C 1..0=3
 @vfadd.r.ab   rd rs1 rs2      31..30=2 29..25=0x01 14=1 13..12=3 6..2=0x0C 1..0=3
 @vfsub.ab     rd rs1 rs2      31..30=2 29..25=0x02 14=0 13..12=3 6..2=0x0C 1..0=3
@@ -528,19 +546,25 @@ vfcvtu.b.b   rd rs1 24..20=7 31..30=2 29..25=0x0C 14=1 13..12=3 6..2=0x0C 1..0=3
 @vfcvtu.ah.ab rd rs1 24..20=7 31..30=2 29..25=0x0C 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfcvt.ab.ah  rd rs1 24..20=6 31..30=2 29..25=0x0C 14=0 13..12=3 6..2=0x0C 1..0=3
 @vfcvtu.ab.ah rd rs1 24..20=6 31..30=2 29..25=0x0C 14=1 13..12=3 6..2=0x0C 1..0=3
+# end_group
 
 #SMALLFLOAT AUXILIARY
 # collected under Xfaux - naming not final
 
 # Xfauxsingle - single-precision auxiliary operations - requires F extension
+# startgroup Xfauxsingle single-precision auxiliary operations - requires F extension
 # no instructions currently
-# Xfauxvecsingle - vectorial single-precision auxiliary operations - requires Xfvecsingle extension
+# end_group
+
+# startgroup Xfauxvecsingle vectorial single-precision auxiliary operations - requires Xfvecsingle extension
 #vfdotp.s       rd rs1 rs2  31..30=2 29..25=0x0A 14=0 13..12=0 6..2=0x0C 1..0=3
 #vfdotp.r.s     rd rs1 rs2  31..30=2 29..25=0x0A 14=1 13..12=0 6..2=0x0C 1..0=3
 #vfavg.s        rd rs1 rs2  31..30=2 29..25=0x16 14=0 13..12=0 6..2=0x0C 1..0=3
 #vfavg.r.s      rd rs1 rs2  31..30=2 29..25=0x16 14=1 13..12=0 6..2=0x0C 1..0=3
+# end_group
 
 # Xfauxhalf - half-precision auxiliary operations - requires Xfhalf extension
+# startgroup Xfauxhalf half-precision auxiliary operations - requires Xfhalf extension
 fmulex.s.h      rd rs1 rs2     31..27=0x09 rm       26..25=2 6..2=0x14 1..0=3
 fmacex.s.h      rd rs1 rs2     31..27=0x0A rm       26..25=2 6..2=0x14 1..0=3
 # Xfauxvechalf - vectorial half-precision auxiliary operations - requires Xfvechalf extension
@@ -554,8 +578,10 @@ vfndotpex.s.h   rd rs1 rs2  31..30=2 29..25=0x1D 14=0 13..12=2 6..2=0x0C 1..0=3
 vfndotpex.s.r.h rd rs1 rs2  31..30=2 29..25=0x1D 14=1 13..12=2 6..2=0x0C 1..0=3
 #vfavg.h        rd rs1 rs2  31..30=2 29..25=0x16 14=0 13..12=2 6..2=0x0C 1..0=3
 #vfavg.r.h      rd rs1 rs2  31..30=2 29..25=0x16 14=1 13..12=2 6..2=0x0C 1..0=3
+# end_group
 
 # Xfauxalthalf - alternate half-precision auxiliary operations - requires Xfalthalf extension
+# startgroup Xfauxalthalf alternate half-precision auxiliary operations - requires Xfalthalf extension
 @fmulex.s.ah      rd rs1 rs2     31..27=0x09 rm       26..25=2 6..2=0x14 1..0=3
 @fmacex.s.ah      rd rs1 rs2     31..27=0x0A rm       26..25=2 6..2=0x14 1..0=3
 # Xfauxvecalthalf - vectorial alternate half-precision auxiliary operations - requires Xfvecalthalf extension
@@ -569,8 +595,10 @@ vfndotpex.s.r.h rd rs1 rs2  31..30=2 29..25=0x1D 14=1 13..12=2 6..2=0x0C 1..0=3
 @vfndotpex.s.r.ah rd rs1 rs2  31..30=2 29..25=0x1D 14=1 13..12=2 6..2=0x0C 1..0=3
 #@vfavg.ah        rd rs1 rs2  31..30=2 29..25=0x16 14=0 13..12=2 6..2=0x0C 1..0=3
 #@vfavg.r.ah      rd rs1 rs2  31..30=2 29..25=0x16 14=1 13..12=2 6..2=0x0C 1..0=3
+# end_group
 
 # Xfauxquarter - quarter-precision auxiliary operations - requires Xfquarter extension
+# startgroup Xfauxquarter quarter-precision auxiliary operations - requires Xfquarter extension
 fmulex.s.b        rd rs1 rs2     31..27=0x09 rm       26..25=3 6..2=0x14 1..0=3
 fmacex.s.b        rd rs1 rs2     31..27=0x0A rm       26..25=3 6..2=0x14 1..0=3
 # Xfauxvecquarter & Xfauxvechalf - vectorial quarter-precision auxiliary operations - requires Xfvecquarter extension
@@ -584,8 +612,10 @@ vfndotpex.h.b    rd rs1 rs2  31..30=2 29..25=0x1D 14=0 13..12=3 6..2=0x0C 1..0=3
 vfndotpex.h.r.b  rd rs1 rs2  31..30=2 29..25=0x1D 14=1 13..12=3 6..2=0x0C 1..0=3
 #vfavg.b         rd rs1 rs2  31..30=2 29..25=0x16 14=0 13..12=3 6..2=0x0C 1..0=3
 #vfavg.r.b       rd rs1 rs2  31..30=2 29..25=0x16 14=1 13..12=3 6..2=0x0C 1..0=3
+# end_group
 
 # Xfauxaltquarter - alternate quarter-precision auxiliary operations - requires Xfaltquarter extension
+# startgroup Xfauxaltquarter alternate quarter-precision auxiliary operations - requires Xfaltquarter extension
 @fmulex.s.ab rd rs1 rs2     31..27=0x09 rm       26..25=3 6..2=0x14 1..0=3
 @fmacex.s.ab rd rs1 rs2     31..27=0x0A rm       26..25=3 6..2=0x14 1..0=3
 # Xfauxvecaltquarter & Xfauxvechalf - vectorial alternate quarter-precision auxiliary operations - requires Xfvecaltquarter extension
@@ -599,8 +629,10 @@ vfndotpex.h.r.b  rd rs1 rs2  31..30=2 29..25=0x1D 14=1 13..12=3 6..2=0x0C 1..0=3
 @vfndotpex.h.r.ab rd rs1 rs2  31..30=2 29..25=0x1D 14=1 13..12=3 6..2=0x0C 1..0=3
 #@vfavg.ab        rd rs1 rs2  31..30=2 29..25=0x16 14=0 13..12=3 6..2=0x0C 1..0=3
 #@vfavg.r.ab      rd rs1 rs2  31..30=2 29..25=0x16 14=1 13..12=3 6..2=0x0C 1..0=3
+# end_group
 
 # Xfauxvecaltquarter & Xfauxvecalthalf - vectorial alternate quarter-precision auxiliary operations - requires Xfvecaltquarter extension
+# startgroup Xfauxvecaltquarter vectorial alternate quarter-precision auxiliary operations - requires Xfvecaltquarter extension
 @vfsumex.ah.ab     rd rs1 rs2  31..30=2 29..25=0x1E 14=0 13..12=3 6..2=0x0C 1..0=3
 @vfnsumex.ah.ab    rd rs1 rs2  31..30=2 29..25=0x1F 14=0 13..12=3 6..2=0x0C 1..0=3
 @vfdotpex.ah.ab    rd rs1 rs2  31..30=2 29..25=0x0B 14=0 13..12=3 6..2=0x0C 1..0=3
@@ -609,3 +641,4 @@ vfndotpex.h.r.b  rd rs1 rs2  31..30=2 29..25=0x1D 14=1 13..12=3 6..2=0x0C 1..0=3
 @vfndotpex.ah.r.ab rd rs1 rs2  31..30=2 29..25=0x1D 14=1 13..12=3 6..2=0x0C 1..0=3
 #@vfavg.ab         rd rs1 rs2  31..30=2 29..25=0x16 14=0 13..12=3 6..2=0x0C 1..0=3
 #@vfavg.r.ab       rd rs1 rs2  31..30=2 29..25=0x16 14=1 13..12=3 6..2=0x0C 1..0=3
+# endgroup
