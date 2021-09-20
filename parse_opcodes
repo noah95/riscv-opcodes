@@ -1839,14 +1839,14 @@ def make_lit():
 
 def make_csv():
     import csv
-    cols = ["name", "group", "pseudo"]
+    cols = ["name", "group", "pseudo", "comment"]
     with sys.stdout as csvfile:
         w = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         w.writerow(cols)
         for name in namelist:
             pseudo = name in pseudos
             groups = [grp for grp, insns in ins_groups.items() if name in insns]
-            w.writerow([name, ' '.join(groups), pseudo])
+            w.writerow([name, ' '.join(groups), pseudo, ''])
 
 def parse_inputs(args):
     inputs = []
