@@ -1185,7 +1185,7 @@ def make_rust():
 # Alt formats use a reserved value in the rm field
 altfloats = {'ah': 0b101}
 # ops that use the rs2 field as a funct5
-rs2funct5 = ['vfsqrt', 'vfclass', 'vfmv', 'vfcvt', 'vfcvtu']
+rs2funct5 = ['vfsqrt', 'vfclass', 'vfmv', 'vfcvt', 'vfcvtu','vfsum','vfsumex','vfnsum','vfnsumex']
 # mapping of float format to VFMT field
 vfmt = {'s': 'VFMT_FP32', 'h': 'VFMT_FP16',
         'ah': 'VFMT_FP16', 'b': 'VFMT_FP8', 'ab': 'VFMT_FP8'}
@@ -1199,10 +1199,6 @@ def get_vfmt(n):
     split_n = n.lower().split('.')
     op, argc = split_n[0], len(split_n)-1
 
-    # parse special cases first
-    if any([op == x for x in ['vfdotpex', 'vfndotpex', 'vfsumex', 'vfnsumex']]):
-        return vfmt[split_n[-1]]
-
     if argc == 2 and all(e in vfmt for e in split_n[1:]):
         # if of form ???.[].[] where both [] are in vfmt we have a coversion operation and use the first
         # as vfmt field
@@ -1213,8 +1209,11 @@ def get_vfmt(n):
     elif argc == 1:
         # only single format field
         fmt = vfmt[split_n[1]]
+    elif argc == 3 and split_n[2] == 'r':
+        # Repeating vector instructions [0].r.[1] use destination [0] as format
+        fmt = vfmt[split_n[1]]
     else:
-        eprint(f'[001] not implemented: {n}')
+        eprint(f'[get_vfmt] not implemented: {n}')
         exit(-1)
     return fmt
 
@@ -1227,7 +1226,7 @@ def get_reg_type(n, a):
     reg_prefix = None
     if n.startswith(('fmadd', 'fmsub', 'fnm', 'fadd', 'fsub', 'fmul', 'fdiv', 'fsqrt', 'fsgnj', 'fmin', 'fmax',
                      'vfadd', 'vfsub', 'vfmul', 'vfdiv', 'vfmin', 'vfmax', 'vfsqrt', 'vfmac', 'vfmre', 'vfsgnj', 'fmacex',
-                     'vfcpk', 'vfdotp', 'vfavg', 'vfsum', 'vfnsumex', 'vfndotpex')):
+                     'vfcpk', 'vfdotp', 'vfavg', 'vfsum', 'vfnsumex', 'vfndotpex','vfnsum')):
         reg_prefix = 'f'
     # compare ops
     if n.startswith(('feq', 'flt', 'fle', 'vfeq', 'vfne', 'vflt', 'vfge', 'vfle', 'vfgt')):
@@ -1274,18 +1273,18 @@ def reg_prefix_to_td(n, a):
                       'h': 'FPR16', 'ah': 'FPR16', 'b': 'FPR16', 'ab': 'FPR16'}
     flt_ldst_to_td_type = {'d': 'FPR64', 'w': 'FPR32',
                            'h': 'FPR16', 'ah': 'FPR16', 'b': 'FPR16', 'ab': 'FPR16'}
+    all_ld_st = []
+    for itm in itertools.product(('fs', 'fl'), flt_ldst_to_td_type.keys()):
+        all_ld_st.append(''.join(list(itm)))
     reg_prefix = get_reg_type(n, a)
     if reg_prefix == 'f':
-        # treat fcvt ops differently
-        if n.startswith(('fcvt', 'vfcvt')):
+        # treat fcvt/pack ops differently
+        if n.startswith(('fcvt', 'vfcvt','vfcpk')):
             if a == 'rd':
                 return flt_to_td_type[n.split('.')[1]]
             else:
                 return flt_to_td_type[n.split('.')[2]]
         # treat loads/stores differently
-        all_ld_st = []
-        for itm in itertools.product(('fs', 'fl'), flt_ldst_to_td_type.keys()):
-            all_ld_st.append(''.join(list(itm)))
         if n in all_ld_st:
             fmt = n[2:].split('.')[0]
             return flt_to_td_type[fmt]
@@ -1480,7 +1479,7 @@ def td_rvf_type(n, match, args):
     print(s)
 
 
-def td_rvf_funct2_type(n, match, args):
+def td_rvf_funct5_type(n, match, args):
     s = """def {rec} : RVInstRVf<0b{funct2:02b}, 0b{vecfltop:05b}, 0b{r:01b}, {vfmt}, RISCVOpcode<0b{opcode:07b}>,
              {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]> {{
     let rs2 = 0b{funct5:05b};
@@ -1569,7 +1568,7 @@ def print_tablegen_insn(n):
         td_r4_type(n, match[n], arguments[n])
     else:
         if n.split('.')[0].lower() in rs2funct5:
-            td_rvf_funct2_type(n, match[n], arguments[n])
+            td_rvf_funct5_type(n, match[n], arguments[n])
         elif 'rm' in arguments[n]:
             if n.startswith(('fcvt', 'fsqrt')):
                 td_rfrm_funt5_type(n, match[n], arguments[n])
@@ -1590,31 +1589,23 @@ def print_tablegen_insn(n):
     #     s = s + '?'
     # print(s + ";")
 
-
-inst_aliases = {
-    'fsah': 'def : InstAlias<"fsah $rs2, ${imm12}(${rs1})",  (FSH FPR16:$rs2,  GPR:$rs1, simm12:$imm12), 0>;\ndef : InstAlias<"fsah $rs2, (${rs1})",  (FSH FPR16:$rs2,  GPR:$rs1, 0), 0>;',
-    'flah': 'def : InstAlias<"flah $rd, ${imm12}(${rs1})",  (FLH FPR16:$rd,  GPR:$rs1, simm12:$imm12), 0>;\ndef : InstAlias<"flah $rd, (${rs1})",  (FLH FPR16:$rd,  GPR:$rs1, 0), 0>;',
-    'fsab': 'def : InstAlias<"fsab $rs2, ${imm12}(${rs1})",  (FSB FPR16:$rs2,  GPR:$rs1, simm12:$imm12), 0>;\ndef : InstAlias<"fsab $rs2, (${rs1})",  (FSB FPR16:$rs2,  GPR:$rs1, 0), 0>;',
-    'flab': 'def : InstAlias<"flab $rd, ${imm12}(${rs1})",  (FLB FPR16:$rd,  GPR:$rs1, simm12:$imm12), 0>;\ndef : InstAlias<"flah $rd, (${rs1})",  (FLB FPR16:$rd,  GPR:$rs1, 0), 0>;',
-}
-
-
 def print_tablegen_instalias(n):
     args = arguments[n]
     # def : InstAlias<"mv $rd, $rs",   (ADDI GPR:$rd, GPR:$rs,       0)>;
-    s = newname = None
+    argstring = s = newname = None
 
-    def inst_alias(n, args, newname):
+    def inst_alias(n, args, newname, argstring=None):
+        outs=td_assemble_outs(n, args)
+        if len(outs) == 0:
+            targs=f"{td_assemble_ins(n, args)}"
+        else:
+            targs=f"{outs}, {td_assemble_ins(n, args)}"
         return "def : InstAlias<\"{n} {argstr}\",   ({tn} {targs}), 0>;".format(
             n=n,
-            argstr=', '.join(["$"+a for a in args]),
+            argstr=', '.join(["$"+a for a in args]) if not argstring else argstring,
             tn=newname.replace('.', '_').upper(),
-            targs=f"{td_assemble_outs(n, args)}, {td_assemble_ins(n, args)}",
+            targs=targs,
         )
-
-    # Hard-coded
-    if n in inst_aliases:
-        s = inst_aliases[n]
 
     # Search all instructions for the "upstream" name
     for name2, match2 in match.items():
@@ -1650,8 +1641,15 @@ def print_tablegen_instalias(n):
         elif all(x in ['ah', 'ab'] for x in n.split('.')[1::2]):
             newname = n.replace('ab', 'b').replace('ah', 'h')
 
+    # Fixup argument string for load/store instructions
+    if any(n == x for x in ['fsah','fsab']):
+        args = ['rs2','rs1','imm12']
+        argstring = "$rs2, ${imm12}(${rs1})"
+    if any(n == x for x in ['flah','flab']):
+        argstring = "$rd, ${imm12}(${rs1})"
+
     if not s and newname:
-        s = inst_alias(n, args, newname)
+        s = inst_alias(n, args, newname, argstring)
 
     if s:
         print(s)
@@ -1661,7 +1659,7 @@ def print_tablegen_instalias(n):
             # def : InstAlias<"fcvt.ah.d $rd, $rs1",   (FCVT_H_D FPR16:$rd, FPR64:$rs1, 0b111)>;
             print(s.replace(', $rm', '').replace(', frmarg:$rm', ', 0b111'))
     else:
-        eprint(f'Unsuppoerted instruction alias: {n}')
+        eprint(f'Unsupported instruction alias: {n}')
 
 
 def print_td_subtarget_def(g, comment=''):
@@ -1724,6 +1722,7 @@ def make_tablegen():
 
 
 def rnd_reg():
+    # return 0
     return random.randrange(32)
 
 
@@ -1740,7 +1739,7 @@ def rnd_argstring(n, args):
         # ftX for rs and rd
         elif n.startswith(('fmadd', 'fmsub', 'fnm', 'fadd', 'fsub', 'fmul', 'fdiv', 'fsqrt', 'fsgnj', 'fmin', 'fmax',
                            'vfadd', 'vfsub', 'vfmul', 'vfdiv', 'vfmin', 'vfmax', 'vfsqrt', 'vfmac', 'vfmre', 'vfsgnj', 'fmacex',
-                           'vfcpk', 'vfdotp', 'vfavg', 'vfsum', 'vfnsumex', 'vfndotpex')):
+                           'vfcpk', 'vfdotp', 'vfavg', 'vfsum', 'vfnsumex', 'vfndotpex','vfnsum')):
             ret.append(f"f{rnd_reg()}")
         # compare ops
         elif n.startswith(('feq', 'flt', 'fle', 'vfeq', 'vfne', 'vflt', 'vfge', 'vfle', 'vfgt')):
@@ -1884,8 +1883,15 @@ grp_to_mattr = {
     'xfauxhalf': ['d'],
     'xfauxalthalf': ['d', 'xfauxhalf'],
     'xfauxquarter': ['d'],
-    'xfauxaltquarter': ['d', 'xfauxquarter'],
-    'xfauxvecaltquarter': ['d', 'xfauxquarter'],
+    'xfauxaltquarter': ['d', 'xfauxquarter','xfauxvecquarter'],
+    'xfauxvecquarter': ['d'],
+    'xfauxvecaltquarter': ['d', 'xfauxvecquarter'],
+    'xfauxvecalthalf': ['d','xfauxvechalf'],
+    'xfauxvechalf': ['d'],
+    'xfexpauxvechalf': ['d'],
+    'xfexpauxvecalthalf': ['d','xfexpauxvechalf','xfauxvechalf'],
+    'xfexpauxvecquarter': ['d'],
+    'xfexpauxvecaltquarter': ['d','xfexpauxvecquarter'],
 }
 
 
