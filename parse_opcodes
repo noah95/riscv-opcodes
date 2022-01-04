@@ -1379,7 +1379,7 @@ def td_r4_type(n, match, args):
     args[args.index('rm')] = 'funct3'
     s = """def {rec} : RVInstR4<0b{funct2:02b}, RISCVOpcode<0b{opcode:07b}>,
              {outs}, {ins}, \"{opcodestr}\", \"{argstr}\">, Sched<[]>;"""
-    s = s.format(
+    s1 = s.format(
         rec=n.replace('.', '_').upper(),
         funct2=yank(match, 25, 2),
         opcode=yank(match, 0, 7),
@@ -1387,7 +1387,15 @@ def td_r4_type(n, match, args):
         ins=f"(ins {td_assemble_ins(n, args)})",
         opcodestr=n,
         argstr=', '.join(["$"+a for a in args]))
-    print(s)
+    # create instruction alias without rounding mode argument
+    s = """\ndef      : InstAlias<\"{opcodestr} {argstr}\", ({rec} {outs}, {ins}, 0b111)>;"""
+    s2 = s.format(
+        rec=n.replace('.', '_').upper(),
+        outs=f"{td_assemble_outs(n, args)}",
+        ins=f"{td_assemble_ins(n, args[:-1])}",
+        opcodestr=n,
+        argstr=', '.join(["$"+a for a in args[:-1]]))
+    print(s1+s2)
 
 
 def td_r_funct5_type(n, match, args):
